@@ -14,16 +14,16 @@ import (
 )
 
 const (
-	baseURL        = "http://www.haodoo.net"
-	bookPathPrefix = "?M=book&P="
+	baseURL                = "http://www.haodoo.net"
+	bookPathPrefix         = "?M=book&P="
 	bookDownloadPathPrefix = "?M=d&P="
-	downPathPrefix = baseURL + "/" + "?M=d&P="
+	downPathPrefix         = baseURL + "/" + "?M=d&P="
 )
 
 type book struct {
 	author string
-	title string
-	link string
+	title  string
+	link   string
 	format string
 }
 
@@ -76,7 +76,7 @@ func getDownloadURL(p <-chan string, f string) <-chan book {
 				log.Fatal(err)
 			}
 
-			doc.Find("input[onclick^=Download" + strings.Title(f) + "]").Each(func(i int, s *goquery.Selection){
+			doc.Find("input[onclick^=Download" + strings.Title(f) + "]").Each(func(i int, s *goquery.Selection) {
 				o, _ := s.Attr("onclick")
 
 				p := s.Parent()
@@ -87,15 +87,14 @@ func getDownloadURL(p <-chan string, f string) <-chan book {
 				rd := regexp.MustCompile("(?:Download" + strings.Title(f) + "\\(')([0-9a-zA-Z]{1,})(?:'\\))")
 				rt := regexp.MustCompile("(?:</font>《)(\\S{1,})(?:》<input )")
 
-
 				sd := rd.FindStringSubmatch(o)
 				st := rt.FindStringSubmatch(t)
-				
+
 				if len(sd) == 2 && len(st) == 2 {
 					l <- book{
 						author: a,
-						title: st[1],
-						link: sd[1],
+						title:  st[1],
+						link:   sd[1],
 						format: f,
 					}
 				}
@@ -108,7 +107,7 @@ func getDownloadURL(p <-chan string, f string) <-chan book {
 	return l
 }
 
-func downloadBook(b <- chan book) {
+func downloadBook(b <-chan book) {
 	wd, err := os.Getwd()
 	var wg sync.WaitGroup
 
@@ -122,31 +121,37 @@ func downloadBook(b <- chan book) {
 			defer wg.Done()
 
 			res, err := http.Get(baseURL + "/" + bookDownloadPathPrefix + v.link + "." + v.format)
-			
+
 			if err != nil {
 				return
 			}
-			
+
 			defer res.Body.Close()
-			
-			p := filepath.Join(wd, v.author)
+
+			p := filepath.Join(wd, "download", v.author)
 			fn := v.title + "." + v.format
-			
+
 			err = os.MkdirAll(p, os.ModePerm)
 
 			if err != nil {
 				return
 			}
 
-			out, err := os.Create(filepath.Join(p, fn))
-			
+			fp := filepath.Join(p, fn)
+
+			out, err := os.Create(fp)
+
 			if err != nil {
 				return
 			}
-			
+
 			defer out.Close()
-			
+
 			_, err = io.Copy(out, res.Body)
+
+			if err != nil {
+				os.Remove(fp)
+			}
 		}(v)
 	}
 
