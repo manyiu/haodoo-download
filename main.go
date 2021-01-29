@@ -1,12 +1,14 @@
 package main
 
 import (
-	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 
 	"github.com/PuerkitoBio/goquery"
 )
@@ -14,6 +16,7 @@ import (
 const (
 	baseURL        = "http://www.haodoo.net"
 	bookPathPrefix = "?M=book&P="
+	bookDownloadPathPrefix = "?M=d&P="
 	downPathPrefix = baseURL + "/" + "?M=d&P="
 )
 
@@ -89,7 +92,6 @@ func getDownloadURL(p <-chan string, f string) <-chan book {
 				st := rt.FindStringSubmatch(t)
 				
 				if len(sd) == 2 && len(st) == 2 {
-					fmt.Println(sd[1], st[1], a)
 					l <- book{
 						author: a,
 						title: st[1],
@@ -106,6 +108,51 @@ func getDownloadURL(p <-chan string, f string) <-chan book {
 	return l
 }
 
+func downloadBook(b <- chan book) {
+	wd, err := os.Getwd()
+	var wg sync.WaitGroup
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	for v := range b {
+		wg.Add(1)
+		go func(v book) {
+			defer wg.Done()
+
+			res, err := http.Get(baseURL + "/" + bookDownloadPathPrefix + v.link + "." + v.format)
+			
+			if err != nil {
+				return
+			}
+			
+			defer res.Body.Close()
+			
+			p := filepath.Join(wd, v.author)
+			fn := v.title + "." + v.format
+			
+			err = os.MkdirAll(p, os.ModePerm)
+
+			if err != nil {
+				return
+			}
+
+			out, err := os.Create(filepath.Join(p, fn))
+			
+			if err != nil {
+				return
+			}
+			
+			defer out.Close()
+			
+			_, err = io.Copy(out, res.Body)
+		}(v)
+	}
+
+	wg.Wait()
+}
+
 func main() {
 	var u, f = os.Args[1], os.Args[2]
 
@@ -113,7 +160,5 @@ func main() {
 
 	d := getDownloadURL(p, strings.ToLower(f))
 
-	for v := range d {
-		fmt.Println(v)
-	}
+	downloadBook(d)
 }
