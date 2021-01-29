@@ -59,9 +59,14 @@ func getBookDownloadPage(url string) <-chan string {
 
 func getDownloadURL(p <-chan string, f string) <-chan book {
 	l := make(chan book)
+	var wg sync.WaitGroup
 
-	go func() {
-		for v := range p {
+	for v := range p {
+		wg.Add(1)
+
+		go func(v string) {
+			defer wg.Done()
+
 			res, err := http.Get(baseURL + "/" + v)
 
 			if err != nil {
@@ -99,10 +104,14 @@ func getDownloadURL(p <-chan string, f string) <-chan book {
 					}
 				}
 			})
-		}
+		}(v)
+	}
 
+	go func() {
+		wg.Wait()
 		close(l)
 	}()
+
 
 	return l
 }
