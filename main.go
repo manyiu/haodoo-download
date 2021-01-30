@@ -93,12 +93,12 @@ func getDownloadURL(p <-chan string, f string) <-chan book {
 				rt := regexp.MustCompile("(?:</font>《)(\\S{1,})(?:》<input )")
 
 				sd := rd.FindStringSubmatch(o)
-				st := rt.FindStringSubmatch(t)
+				st := rt.FindAllStringSubmatch(t, i+1)
 
-				if len(sd) == 2 && len(st) == 2 {
+				if len(sd) == 2 && len(st) == i+1 {
 					l <- book{
 						author: a,
-						title:  st[1],
+						title:  st[i][1],
 						link:   sd[1],
 						format: f,
 					}
@@ -111,7 +111,6 @@ func getDownloadURL(p <-chan string, f string) <-chan book {
 		wg.Wait()
 		close(l)
 	}()
-
 
 	return l
 }
